@@ -1,12 +1,12 @@
 package views
 
 import (
-	"embed"
-	"net/http"
 	"bytes"
-	"html/template"
-	"path/filepath"
+	"embed"
 	"fmt"
+	"html/template"
+	"net/http"
+	"path/filepath"
 )
 
 func Init(viewFS embed.FS, viewMap map[string]string, funcMap map[string]interface{}) (map[string]*template.Template, error) {

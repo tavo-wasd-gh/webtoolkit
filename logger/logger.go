@@ -1,10 +1,10 @@
 package logger
 
 import (
-	"runtime"
-	"log"
 	"fmt"
+	"log"
 	"os"
+	"runtime"
 )
 
 type Logger struct {

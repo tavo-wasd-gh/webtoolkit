@@ -21,6 +21,16 @@ func (l *Logger) Printf(format string, args ...interface{}) {
 	}
 }
 
+func (l *Logger) Errorf(format string, args ...interface{}) {
+	if l.Enabled {
+		pc, _, _, _ := runtime.Caller(1)
+		funcName := runtime.FuncForPC(pc).Name()
+
+		log.SetOutput(os.Stderr)
+		log.Printf("%s: %s", funcName, fmt.Sprintf(format, args...))
+	}
+}
+
 func Errorf(format string, args ...interface{}) error {
 	pc, _, _, _ := runtime.Caller(1)
 	funcName := runtime.FuncForPC(pc).Name()

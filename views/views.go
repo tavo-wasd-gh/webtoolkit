@@ -1,0 +1,30 @@
+package views
+
+import (
+	"embed"
+	"html/template"
+	"path/filepath"
+	"fmt"
+)
+
+func Init(viewFS embed.FS, viewMap map[string]string, funcMap map[string]interface{}) (map[string]*template.Template, error) {
+	templates := make(map[string]*template.Template)
+
+	tmplFuncMap := template.FuncMap(funcMap)
+
+	for name, path := range viewMap {
+		content, err := viewFS.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read template %s: %w", path, err)
+		}
+
+		tmpl, err := template.New(filepath.Base(path)).Funcs(tmplFuncMap).Parse(string(content))
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse template %s: %w", path, err)
+		}
+
+		templates[name] = tmpl
+	}
+
+	return templates, nil
+}

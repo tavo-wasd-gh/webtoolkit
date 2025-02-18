@@ -2,6 +2,8 @@ package views
 
 import (
 	"embed"
+	"net/http"
+	"bytes"
 	"html/template"
 	"path/filepath"
 	"fmt"
@@ -27,4 +29,18 @@ func Init(viewFS embed.FS, viewMap map[string]string, funcMap map[string]interfa
 	}
 
 	return templates, nil
+}
+
+func Render(w http.ResponseWriter, tmpl *template.Template, data interface{}) error {
+	var buf bytes.Buffer
+
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return fmt.Errorf("failed to execute template: %v", err)
+	}
+
+	if _, err := buf.WriteTo(w); err != nil {
+		return fmt.Errorf("failed to write template: %v", err)
+	}
+
+	return nil
 }

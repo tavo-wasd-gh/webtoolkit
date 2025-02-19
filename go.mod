@@ -1,3 +1,3 @@
 module github.com/tavo-wasd-gh/webtoolkit
 
-go 1.24.0
+go 1.23.4

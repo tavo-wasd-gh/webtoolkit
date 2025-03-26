@@ -32,6 +32,10 @@ func Init(viewFS embed.FS, viewMap map[string]string, funcMap map[string]interfa
 }
 
 func Render(w http.ResponseWriter, tmpl *template.Template, data interface{}) error {
+	if tmpl == nil {
+		return fmt.Errorf("template is nil")
+	}
+
 	var buf bytes.Buffer
 
 	if err := tmpl.Execute(&buf, data); err != nil {

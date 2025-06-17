@@ -3,10 +3,10 @@ package views
 import (
 	"bytes"
 	"embed"
-	"filepath"
 	"fmt"
 	"html/template"
 	"net/http"
+	"path/filepath"
 	"strings"
 )
 

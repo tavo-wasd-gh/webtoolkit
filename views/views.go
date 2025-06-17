@@ -30,18 +30,8 @@ func Render(w http.ResponseWriter, tmpl *template.Template, data interface{}) er
 
 	var buf bytes.Buffer
 
-	var root string
-	for _, t := range tmpl.Templates() {
-		root = t.Name()
-		break
-	}
-
-	if root == "" {
-		return fmt.Errorf("template has no named blocks")
-	}
-
-	if err := tmpl.ExecuteTemplate(&buf, root, data); err != nil {
-		return fmt.Errorf("failed to execute template %q: %v", root, err)
+	if err := tmpl.ExecuteTemplate(&buf, "base", data); err != nil {
+		return fmt.Errorf("failed to execute template: %v", err)
 	}
 
 	if _, err := buf.WriteTo(w); err != nil {

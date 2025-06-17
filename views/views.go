@@ -14,27 +14,10 @@ func Init(viewFS embed.FS, viewMap map[string][]string, funcMap map[string]inter
 	tmplFuncMap := template.FuncMap(funcMap)
 
 	for name, paths := range viewMap {
-		var contents []string
-
-		for _, path := range paths {
-			content, err := viewFS.ReadFile(path)
-			if err != nil {
-				return nil, fmt.Errorf("failed to read template %s: %w", path, err)
-			}
-			contents = append(contents, string(content))
-		}
-
-		tmpl, err := template.New(filepath.Base(paths[0])).Funcs(tmplFuncMap).Parse(contents[0])
+		tmpl, err := template.New(name).Funcs(tmplFuncMap).ParseFS(viewFS, paths...)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse base template %s: %w", paths[0], err)
+			return nil, fmt.Errorf("failed to parse templates for %s: %w", name, err)
 		}
-
-		for _, content := range contents[1:] {
-			if _, err := tmpl.Parse(content); err != nil {
-				return nil, fmt.Errorf("failed to parse included template: %w", err)
-			}
-		}
-
 		templates[name] = tmpl
 	}
 

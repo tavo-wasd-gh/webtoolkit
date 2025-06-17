@@ -8,6 +8,9 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+
+	"github.com/tdewolff/minify/v2"
+	"github.com/tdewolff/minify/v2/html"
 )
 
 func Init(viewFS embed.FS, viewMap map[string][]string, funcMap map[string]interface{}) (map[string]*template.Template, error) {
@@ -38,7 +41,15 @@ func Render(w http.ResponseWriter, tmpl *template.Template, data interface{}) er
 		return fmt.Errorf("failed to execute template: %v", err)
 	}
 
-	if _, err := buf.WriteTo(w); err != nil {
+	m := minify.New()
+	m.AddFunc("text/html", html.Minify)
+
+	minified, err := m.String("text/html", buf.String())
+	if err != nil {
+		return fmt.Errorf("failed to minify template: %v", err)
+	}
+
+	if _, err := w.Write([]byte(minified)); err != nil {
 		return fmt.Errorf("failed to write template: %v", err)
 	}
 

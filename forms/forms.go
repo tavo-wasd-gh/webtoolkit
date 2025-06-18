@@ -31,17 +31,22 @@ func ParseForm(r *http.Request, dst interface{}) error {
 			continue
 		}
 
-		formValue := r.FormValue(formKey)
+		formValue, found := r.Form[formKey]
+		if !found || len(formValue[0]) == 0 {
+			return fmt.Errorf("missing form field: %s", formKey)
+		}
+
+		value := formValue[0]
 
 		if formKey != "password" {
-			formValue = strings.TrimSpace(formValue)
+			value = strings.TrimSpace(value)
 		}
 		switch formKey {
 		case "email":
-			formValue = strings.ToLower(formValue)
+			value = strings.ToLower(value)
 		case "name":
-			if len(formValue) > 0 {
-				formValue = strings.ToUpper(formValue[:1]) + formValue[1:]
+			if len(value) > 0 {
+				value = strings.ToUpper(value[:1]) + value[1:]
 			}
 		}
 
@@ -51,21 +56,21 @@ func ParseForm(r *http.Request, dst interface{}) error {
 
 		switch field.Kind() {
 		case reflect.String:
-			field.SetString(formValue)
+			field.SetString(value)
 		case reflect.Int, reflect.Int64:
-			intVal, err := strconv.ParseInt(formValue, 10, 64)
+			intVal, err := strconv.ParseInt(value, 10, 64)
 			if err != nil {
 				return fmt.Errorf("invalid int for field '%s': %v", formKey, err)
 			}
 			field.SetInt(intVal)
 		case reflect.Float64:
-			floatVal, err := strconv.ParseFloat(formValue, 64)
+			floatVal, err := strconv.ParseFloat(value, 64)
 			if err != nil {
 				return fmt.Errorf("invalid float for field '%s': %v", formKey, err)
 			}
 			field.SetFloat(floatVal)
 		case reflect.Bool:
-			boolVal, err := strconv.ParseBool(formValue)
+			boolVal, err := strconv.ParseBool(value)
 			if err != nil {
 				return fmt.Errorf("invalid bool for field '%s': %v", formKey, err)
 			}

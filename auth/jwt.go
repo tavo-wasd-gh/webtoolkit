@@ -1,7 +1,7 @@
 package auth
 
 import (
-	"errors"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -9,51 +9,75 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// JwtSet creates a JWT from any claims struct and sets it as a cookie.
-func JwtSet[T jwt.Claims](w http.ResponseWriter, secure bool, name string, claims T, expires time.Time, secret string) error {
-	// Add expiration to the claims if it's a RegisteredClaims type or contains it
-	if rc, ok := any(claims).(*jwt.RegisteredClaims); ok {
-		rc.ExpiresAt = jwt.NewNumericDate(expires)
+// JwtSet creates a signed JWT token with any user-defined claim struct and sets it as a cookie.
+func JwtSet(w http.ResponseWriter, secure bool, name string, customClaims any, expires time.Time, secret string) error {
+	// Marshal user-defined claims to JSON
+	claimsBytes, err := json.Marshal(customClaims)
+	if err != nil {
+		return fmt.Errorf("failed to marshal claims: %w", err)
 	}
 
-	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(secret))
+	// Unmarshal into jwt.MapClaims
+	var mapClaims jwt.MapClaims
+	if err := json.Unmarshal(claimsBytes, &mapClaims); err != nil {
+		return fmt.Errorf("failed to unmarshal to map claims: %w", err)
+	}
+
+	// Set exp if not already present
+	if _, ok := mapClaims["exp"]; !ok {
+		mapClaims["exp"] = expires.Unix()
+	}
+
+	// Create token
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, mapClaims)
+	signedToken, err := token.SignedString([]byte(secret))
 	if err != nil {
 		return err
 	}
 
+	// Set cookie
 	http.SetCookie(w, &http.Cookie{
-		Name:     name,
-		Value:    token,
+		SameSite: http.SameSiteStrictMode,
 		HttpOnly: true,
 		Secure:   secure,
-		SameSite: http.SameSiteStrictMode,
+		Name:     name,
+		Value:    signedToken,
 		Expires:  expires,
 	})
 
 	return nil
 }
 
-// JwtValidate reads the cookie, parses the JWT, and populates the provided claims struct.
-func JwtValidate[T jwt.Claims](r *http.Request, name string, secret string, claims T) (T, error) {
+// JwtValidate parses and verifies the JWT, and fills the provided struct pointer with claims.
+func JwtValidate(r *http.Request, name string, secret string, out any) error {
 	cookie, err := r.Cookie(name)
 	if err != nil {
-		return claims, err
+		return err
 	}
 
-	token, err := jwt.ParseWithClaims(cookie.Value, claims, func(token *jwt.Token) (interface{}, error) {
+	// Parse token using MapClaims
+	token, err := jwt.Parse(cookie.Value, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return claims, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return []byte(secret), nil
 	})
-
-	if err != nil {
-		return claims, err
+	if err != nil || !token.Valid {
+		return fmt.Errorf("invalid token: %w", err)
 	}
 
-	if token.Valid {
-		return claims, nil
+	// Extract and re-marshal MapClaims
+	if claims, ok := token.Claims.(jwt.MapClaims); ok {
+		claimsBytes, err := json.Marshal(claims)
+		if err != nil {
+			return err
+		}
+		// Fill the output struct
+		if err := json.Unmarshal(claimsBytes, out); err != nil {
+			return fmt.Errorf("invalid claims structure: %w", err)
+		}
+		return nil
 	}
 
-	return claims, errors.New("invalid token")
+	return fmt.Errorf("could not extract claims")
 }

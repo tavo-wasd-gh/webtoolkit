@@ -2,9 +2,11 @@ package views
 
 import (
 	"bytes"
+	"compress/gzip"
 	"embed"
 	"fmt"
 	"html/template"
+	"io"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -30,7 +32,7 @@ func Init(viewFS embed.FS, viewMap map[string][]string, funcMap map[string]inter
 	return templates, nil
 }
 
-func Render(w http.ResponseWriter, tmpl *template.Template, data interface{}) error {
+func Render(w http.ResponseWriter, r *http.Request, tmpl *template.Template, data interface{}) error {
 	if tmpl == nil {
 		return fmt.Errorf("template is nil")
 	}
@@ -49,8 +51,22 @@ func Render(w http.ResponseWriter, tmpl *template.Template, data interface{}) er
 		return fmt.Errorf("failed to minify template: %v", err)
 	}
 
-	if _, err := w.Write([]byte(minified)); err != nil {
-		return fmt.Errorf("failed to write template: %v", err)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Vary", "Accept-Encoding")
+
+	if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+		w.Header().Set("Content-Encoding", "gzip")
+
+		gzWriter := gzip.NewWriter(w)
+		defer gzWriter.Close()
+
+		if _, err := gzWriter.Write([]byte(minified)); err != nil {
+			return fmt.Errorf("failed to write gzipped response: %v", err)
+		}
+	} else {
+		if _, err := io.WriteString(w, minified); err != nil {
+			return fmt.Errorf("failed to write response: %v", err)
+		}
 	}
 
 	return nil

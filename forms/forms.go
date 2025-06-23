@@ -31,9 +31,14 @@ func ParseForm(r *http.Request, dst interface{}) error {
 			continue
 		}
 
+		required := structField.Tag.Get("req") == "1"
+
 		formValue, found := r.Form[formKey]
 		if !found || len(formValue[0]) == 0 {
-			return fmt.Errorf("missing form field: %s", formKey)
+			if required {
+				return fmt.Errorf("missing required form field: %s", formKey)
+			}
+			continue // skip if not required
 		}
 
 		value := formValue[0]
@@ -41,6 +46,7 @@ func ParseForm(r *http.Request, dst interface{}) error {
 		if formKey != "password" {
 			value = strings.TrimSpace(value)
 		}
+
 		switch formKey {
 		case "email":
 			value = strings.ToLower(value)

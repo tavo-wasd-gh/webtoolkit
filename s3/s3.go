@@ -6,24 +6,24 @@ import (
     "path/filepath"
 )
 
-type LocalS3 struct {
+type Client struct {
     RootDir string
 }
 
-func New(root string) *LocalS3 {
-    return &LocalS3{RootDir: root}
+func New(root string) *Client {
+    return &Client{RootDir: root}
 }
 
-func (s *LocalS3) getPath(bucket, key string) string {
+func (s *Client) getPath(bucket, key string) string {
     return filepath.Join(s.RootDir, bucket, key)
 }
 
-func (s *LocalS3) CreateBucket(bucket string) error {
+func (s *Client) CreateBucket(bucket string) error {
     path := filepath.Join(s.RootDir, bucket)
     return os.MkdirAll(path, 0755)
 }
 
-func (s *LocalS3) PutObject(bucket, key string, reader io.Reader) error {
+func (s *Client) PutObject(bucket, key string, reader io.Reader) error {
     fullPath := s.getPath(bucket, key)
 
     if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
@@ -40,12 +40,12 @@ func (s *LocalS3) PutObject(bucket, key string, reader io.Reader) error {
     return err
 }
 
-func (s *LocalS3) GetObject(bucket, key string) (*os.File, error) {
+func (s *Client) GetObject(bucket, key string) (*os.File, error) {
     fullPath := s.getPath(bucket, key)
     return os.Open(fullPath)
 }
 
-func (s *LocalS3) DeleteObject(bucket, key string) error {
+func (s *Client) DeleteObject(bucket, key string) error {
     fullPath := s.getPath(bucket, key)
     return os.Remove(fullPath)
 }

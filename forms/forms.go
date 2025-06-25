@@ -50,10 +50,6 @@ func ParseForm(r *http.Request, dst interface{}) error {
 		switch formKey {
 		case "email":
 			value = strings.ToLower(value)
-		case "name":
-			if len(value) > 0 {
-				value = strings.ToUpper(value[:1]) + value[1:]
-			}
 		}
 
 		if !field.CanSet() {

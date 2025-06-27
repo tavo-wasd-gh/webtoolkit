@@ -6,7 +6,6 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -20,12 +19,6 @@ var (
 	// Sessions
 	sessions   = make(map[string]session)
 	sessionsMu sync.RWMutex
-)
-
-var (
-	ErrInvalidSession = errors.New("invalid session token")
-	ErrExpiredSession = errors.New("session expired")
-	ErrInvalidCSRF    = errors.New("invalid CSRF token")
 )
 
 type session struct {
@@ -103,18 +96,18 @@ func Validate(st, ct string) (string, string, any, error) {
 	sessionsMu.RUnlock()
 
 	if !ok {
-		return "", "", nil, ErrInvalidSession
+		return "", "", nil, fmt.Errorf("invalid session token")
 	}
 
 	if time.Now().After(s.expires) {
 		sessionsMu.Lock()
 		delete(sessions, hst)
 		sessionsMu.Unlock()
-		return "", "", nil, ErrExpiredSession
+		return "", "", nil, fmt.Errorf("session expired")
 	}
 
 	if subtle.ConstantTimeCompare([]byte(s.csrfTokenHash), []byte(hash(ct))) != 1 {
-		return "", "", nil, ErrInvalidCSRF
+		return "", "", nil, fmt.Errorf("invalid CSRF token")
 	}
 
 	newst, err := generateToken(TokenLength)
@@ -141,7 +134,6 @@ func Validate(st, ct string) (string, string, any, error) {
 	return newst, newct, s.data, nil
 }
 
-// Delete removes a session by its session token.
 func Delete(st string) error {
     hst := hash(st)
 
@@ -149,7 +141,7 @@ func Delete(st string) error {
     defer sessionsMu.Unlock()
 
     if _, ok := sessions[hst]; !ok {
-        return ErrInvalidSession
+        return fmt.Errorf("invalid session token")
     }
 
     delete(sessions, hst)

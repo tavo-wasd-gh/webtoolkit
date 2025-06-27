@@ -15,7 +15,6 @@ var (
 	// Configurable defaults
 	MaxSessions = 100_000
 	TokenLength = 24
-	CleanupTime = 1 * time.Hour
 	// Sessions
 	sessions   = make(map[string]session)
 	sessionsMu sync.RWMutex

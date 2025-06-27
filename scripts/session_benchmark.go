@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	numSessions     = 1_000_000 // Make sure to not exceed this in validation loop
+	numSessions     = 100_000 // Make sure to not exceed this in validation loop
 	sessionLifetime = 10 * time.Minute
 )
 

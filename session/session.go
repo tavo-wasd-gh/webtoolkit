@@ -13,16 +13,14 @@ import (
 	"time"
 )
 
-const (
-	defaultTokenLength    = 24
-	defaultSameSitePolicy = http.SameSiteStrictMode
-)
-
 var (
-	DefaultCookieTTL   = 20 * time.Minute
-	DefaultCleanupTime = 5 * time.Minute
-	sessions           = make(map[string]session)
-	sessionsMu         sync.RWMutex
+	// Configurable defaults
+	DefaultSameSitePolicy = http.SameSiteStrictMode
+	DefaultTokenLength    = 24
+	DefaultCleanupTime    = 5 * time.Minute
+	// Sessions
+	sessions   = make(map[string]session)
+	sessionsMu sync.RWMutex
 )
 
 var (
@@ -59,13 +57,21 @@ func cleanupExpiredSessions() {
 	}
 }
 
-func New(w http.ResponseWriter, secure bool, cookieName string, sessionMaxAge time.Duration, sessionData any) (string, string, error) {
-	st, err := generateToken(defaultTokenLength)
+// Creates a new session with the given max age and session data,
+// returning a session token and a CSRF token.
+//
+// The intended usage is to send the session token as an HttpOnly cookie to the client,
+// which protects it from JavaScript access. The CSRF token should be sent separately,
+// for example embedded in HTML or fetched via an API,
+// and included by the client in a header (e.g., "X-CSRF-Token") on subsequent requests
+// to validate that the request is legitimate and not forged.
+func New(sessionMaxAge time.Duration, sessionData any) (string, string, error) {
+	st, err := generateToken(DefaultTokenLength)
 	if err != nil {
 		return "", "", fmt.Errorf("error generating session token: %w", err)
 	}
 
-	ct, err := generateToken(defaultTokenLength)
+	ct, err := generateToken(DefaultTokenLength)
 	if err != nil {
 		return "", "", fmt.Errorf("error generating CSRF token: %w", err)
 	}
@@ -81,20 +87,10 @@ func New(w http.ResponseWriter, secure bool, cookieName string, sessionMaxAge ti
 	}
 	sessionsMu.Unlock()
 
-	cookie := &http.Cookie{
-		Name:     cookieName,
-		Value:    st,
-		MaxAge:   int(DefaultCookieTTL.Seconds()),
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: defaultSameSitePolicy,
-	}
-
-	http.SetCookie(w, cookie)
-
 	return st, ct, nil
 }
 
+// Validate checks session and CSRF tokens, rotates them if valid, and returns new tokens and session data.
 func Validate(st, ct string) (string, string, any, error) {
 	hst := hash(st)
 
@@ -117,11 +113,11 @@ func Validate(st, ct string) (string, string, any, error) {
 		return "", "", nil, ErrInvalidCSRF
 	}
 
-	newst, err := generateToken(defaultTokenLength)
+	newst, err := generateToken(DefaultTokenLength)
 	if err != nil {
 		return "", "", nil, fmt.Errorf("error generating new session token: %w", err)
 	}
-	newct, err := generateToken(defaultTokenLength)
+	newct, err := generateToken(DefaultTokenLength)
 	if err != nil {
 		return "", "", nil, fmt.Errorf("error generating new CSRF token: %w", err)
 	}
@@ -133,7 +129,7 @@ func Validate(st, ct string) (string, string, any, error) {
 	delete(sessions, hst)
 	sessions[newhst] = session{
 		csrfTokenHash: newhct,
-		expires:       time.Now().Add(DefaultCookieTTL),
+		expires:       s.expires,
 		data:          s.data,
 	}
 	sessionsMu.Unlock()

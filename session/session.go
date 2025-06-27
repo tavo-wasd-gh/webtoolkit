@@ -8,16 +8,15 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"net/http"
 	"sync"
 	"time"
 )
 
 var (
 	// Configurable defaults
-	DefaultSameSitePolicy = http.SameSiteStrictMode
-	DefaultTokenLength    = 24
-	DefaultCleanupTime    = 5 * time.Minute
+	MaxSessions = 100_000
+	TokenLength = 24
+	CleanupTime = 1 * time.Hour
 	// Sessions
 	sessions   = make(map[string]session)
 	sessionsMu sync.RWMutex
@@ -66,28 +65,33 @@ func cleanupExpiredSessions() {
 // and included by the client in a header (e.g., "X-CSRF-Token") on subsequent requests
 // to validate that the request is legitimate and not forged.
 func New(sessionMaxAge time.Duration, sessionData any) (string, string, error) {
-	st, err := generateToken(DefaultTokenLength)
-	if err != nil {
-		return "", "", fmt.Errorf("error generating session token: %w", err)
-	}
+    sessionsMu.Lock()
+    defer sessionsMu.Unlock()
 
-	ct, err := generateToken(DefaultTokenLength)
-	if err != nil {
-		return "", "", fmt.Errorf("error generating CSRF token: %w", err)
-	}
+    if len(sessions) >= MaxSessions {
+        return "", "", fmt.Errorf("maximum number of sessions reached")
+    }
 
-	hst := hash(st)
-	hct := hash(ct)
+    st, err := generateToken(TokenLength)
+    if err != nil {
+        return "", "", fmt.Errorf("error generating session token: %w", err)
+    }
 
-	sessionsMu.Lock()
-	sessions[hst] = session{
-		csrfTokenHash: hct,
-		expires:       time.Now().Add(sessionMaxAge),
-		data:          sessionData,
-	}
-	sessionsMu.Unlock()
+    ct, err := generateToken(TokenLength)
+    if err != nil {
+        return "", "", fmt.Errorf("error generating CSRF token: %w", err)
+    }
 
-	return st, ct, nil
+    hst := hash(st)
+    hct := hash(ct)
+
+    sessions[hst] = session{
+        csrfTokenHash: hct,
+        expires:       time.Now().Add(sessionMaxAge),
+        data:          sessionData,
+    }
+
+    return st, ct, nil
 }
 
 // Validate checks session and CSRF tokens, rotates them if valid, and returns new tokens and session data.
@@ -113,11 +117,11 @@ func Validate(st, ct string) (string, string, any, error) {
 		return "", "", nil, ErrInvalidCSRF
 	}
 
-	newst, err := generateToken(DefaultTokenLength)
+	newst, err := generateToken(TokenLength)
 	if err != nil {
 		return "", "", nil, fmt.Errorf("error generating new session token: %w", err)
 	}
-	newct, err := generateToken(DefaultTokenLength)
+	newct, err := generateToken(TokenLength)
 	if err != nil {
 		return "", "", nil, fmt.Errorf("error generating new CSRF token: %w", err)
 	}
@@ -135,6 +139,21 @@ func Validate(st, ct string) (string, string, any, error) {
 	sessionsMu.Unlock()
 
 	return newst, newct, s.data, nil
+}
+
+// Delete removes a session by its session token.
+func Delete(st string) error {
+    hst := hash(st)
+
+    sessionsMu.Lock()
+    defer sessionsMu.Unlock()
+
+    if _, ok := sessions[hst]; !ok {
+        return ErrInvalidSession
+    }
+
+    delete(sessions, hst)
+    return nil
 }
 
 func generateToken(length int) (string, error) {

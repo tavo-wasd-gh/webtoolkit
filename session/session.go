@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 )
@@ -87,7 +88,7 @@ func New(sessionMaxAge time.Duration, sessionData any) (string, string, error) {
 }
 
 // Validate checks session and CSRF tokens, rotates them if valid, and returns new tokens and session data.
-func Validate(st, ct string) (string, string, any, error) {
+func Validate(st, ct string, dest any) (string, string, error) {
 	hst := hash(st)
 
 	sessionsMu.RLock()
@@ -95,27 +96,39 @@ func Validate(st, ct string) (string, string, any, error) {
 	sessionsMu.RUnlock()
 
 	if !ok {
-		return "", "", nil, fmt.Errorf("invalid session token")
+		return "", "", fmt.Errorf("invalid session token")
 	}
 
 	if time.Now().After(s.expires) {
 		sessionsMu.Lock()
 		delete(sessions, hst)
 		sessionsMu.Unlock()
-		return "", "", nil, fmt.Errorf("session expired")
+		return "", "", fmt.Errorf("session expired")
 	}
 
 	if subtle.ConstantTimeCompare([]byte(s.csrfTokenHash), []byte(hash(ct))) != 1 {
-		return "", "", nil, fmt.Errorf("invalid CSRF token")
+		return "", "", fmt.Errorf("invalid CSRF token")
+	}
+
+	if dest != nil {
+		destVal := reflect.ValueOf(dest)
+		if destVal.Kind() != reflect.Ptr {
+			return "", "", fmt.Errorf("dest must be a pointer")
+		}
+		dataVal := reflect.ValueOf(s.data)
+		if !dataVal.Type().AssignableTo(destVal.Elem().Type()) {
+			return "", "", fmt.Errorf("session data type mismatch: expected %T, got %T", destVal.Elem().Interface(), s.data)
+		}
+		destVal.Elem().Set(dataVal)
 	}
 
 	newst, err := generateToken(TokenLength)
 	if err != nil {
-		return "", "", nil, fmt.Errorf("error generating new session token: %w", err)
+		return "", "", fmt.Errorf("error generating new session token: %w", err)
 	}
 	newct, err := generateToken(TokenLength)
 	if err != nil {
-		return "", "", nil, fmt.Errorf("error generating new CSRF token: %w", err)
+		return "", "", fmt.Errorf("error generating new CSRF token: %w", err)
 	}
 
 	newhst := hash(newst)
@@ -130,7 +143,7 @@ func Validate(st, ct string) (string, string, any, error) {
 	}
 	sessionsMu.Unlock()
 
-	return newst, newct, s.data, nil
+	return newst, newct, nil
 }
 
 func Delete(st string) error {
